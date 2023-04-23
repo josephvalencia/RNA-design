@@ -1,4 +1,7 @@
+__pycache__/
+*.py[cod]
+*.pt
+*.ckpt
 data/
 wandb
 venv/
-optimus_5prime/
