@@ -1,6 +1,6 @@
 from torch import optim, nn
 import lightning.pytorch as pl
-from polysome import *
+from models.optimus_5prime.polysome import *
 import torch.nn.functional as F
 import torchmetrics
 from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
@@ -37,10 +37,14 @@ class OptimusFivePrime(torch.nn.Module):
 # define the LightningModule
 class MeanRibosomeLoadModule(pl.LightningModule):
     
-    def __init__(self,model):
+    def __init__(self):
         super().__init__()
-        self.model = model
+        #self.save_hyperparameters()
+        self.model = OptimusFivePrime()
         self.r2_score = torchmetrics.R2Score()
+
+    def forward(self,x):
+        return self.model(x)
 
     def setup_batch(self,batch):
         utr = torch.stack(batch['utr'],dim=0).to(self.device)
@@ -75,6 +79,7 @@ class MeanRibosomeLoadModule(pl.LightningModule):
         optimizer = optim.Adam(self.parameters(), lr=1e-3)
         return optimizer
 
+
 if __name__ == "__main__":
 
     test_df,train_df = parse_egfp_polysome("data/5-prime_sample_etal/GSM3130435_egfp_unmod_1.csv","data/5-prime_sample_etal/GSM3130436_egfp_unmod_2.csv")
@@ -93,8 +98,7 @@ if __name__ == "__main__":
     early_stopping = EarlyStopping("val_loss",patience=5)
 
     # train the model
-    optimus = OptimusFivePrime()
-    module = MeanRibosomeLoadModule(optimus) 
+    module = MeanRibosomeLoadModule() 
     wandb_logger = pl.loggers.WandbLogger(project="optimus_5prime")
     trainer = pl.Trainer(max_epochs=3,devices=1,
                          accelerator="gpu",logger=wandb_logger,

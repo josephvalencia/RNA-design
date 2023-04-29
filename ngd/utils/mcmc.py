@@ -14,14 +14,14 @@ class DiscreteMCMCSampler():
                     metropolis_adjust=True,
                     constraint_functions=[]):
         
+        self.curr_state = start_state
         self.output_fn = output_fn
         self.grad_fn = grad_fn
-        self.curr_state = None
         self.metropolis = metropolis_adjust
         self.constraint_functions = constraint_functions
         self.step = 0
     
-    def sample():
+    def sample(self):
         
         # calc q(x'|x)
         q_fwd = self.forward_proposal_dist(src=self.curr_state)
@@ -29,13 +29,13 @@ class DiscreteMCMCSampler():
 
         # metropolis adjustment
         if self.metropolis:
-            curr_state = metropolis_adjustment(q_fwd,next_state)
+            curr_state = self.metropolis_adjustment(q_fwd,next_state)
         else:
             curr_state = next_state
 
         # apply constraints
         if len(self.constraint_functions):
-            for constraint_fn in constraint_functions:
+            for constraint_fn in self.constraint_functions:
                 curr_state = constraint_fn(curr_state)
 
         self.curr_state = curr_state
@@ -76,10 +76,8 @@ class DiscreteMCMCSampler():
 class LangevinSampler(DiscreteMCMCSampler):
     '''Implements Zhang et al. ICML 2022 https://proceedings.mlr.press/v162/zhang22t.html'''
 
-    def __init__(self,output_fn,grad_fn,start_state,stepsize=0.01,beta=0.999,epsilon=1e-8,metropolis_adjust=True):
-        super().__init__(output_fn,metropolis_adjust)
-       
-        self.grad_fn = grad_fn
+    def __init__(self,start_state,output_fn,grad_fn,stepsize=0.01,beta=0.999,epsilon=1e-8,metropolis_adjust=True):
+        super().__init__(start_state,output_fn,grad_fn,metropolis_adjust)
         self.stepsize = stepsize
         self.beta = beta
         self.epsilon = epsilon
@@ -131,8 +129,8 @@ class LangevinSampler(DiscreteMCMCSampler):
 class PathAuxiliarySampler(DiscreteMCMCSampler):
     '''Implements Sun et al. ICLR 2022 https://openreview.net/pdf?id=JSR-YDImK95 '''
 
-    def __init__(self,output_fn,grad_fn,start_state):
-        super().__init__(output_fn,grad_fn,metropolis_adjust,max_path_length)
+    def __init__(self,start_state,output_fn,grad_fn,metropolis_adjust=True,constraint_functions=[],max_path_length=5):
+        super().__init__(start_state,output_fn,grad_fn,metropolis_adjust,constraint_functions)
         self.max_path_length = max_path_length
         self.current_length = 1
         self.src_cache = []
@@ -149,14 +147,14 @@ class PathAuxiliarySampler(DiscreteMCMCSampler):
             q_i = self.path_auxiliary_proposal_dist(src,grads)
             next_state = q_i.sample() 
             log_prob += q_i.log_prob(next_state) 
-            src = update_seq(next_state,src)
+            src = self.update_seq(next_state,src)
             self.src_cache.append(src) 
         return log_prob
 
     def reverse_proposal_dist(self,src):
 
         # gradients at final state 
-        grads = self.input_grads(src_cache[-1])
+        grads = self.input_grads(self.src_cache[-1])
         log_prob = 0.0
         
         for i in range(self.current_length - 1,0,-1): 
@@ -189,10 +187,10 @@ class GibbsWithGradientsSampler(DiscreteMCMCSampler):
     '''Implements Grathwohl et al. ICML 2021 '''
     
     def forward_proposal_dist(self,src):
-        return gwg_proposal_dist(self,src)        
+        return self.gwg_proposal_dist(self,src)        
 
     def reverse_proposal_dist(self,src):    
-        return gwg_proposal_dist(self,src)
+        return self.gwg_proposal_dist(self,src)
 
     def gwg_proposal_dist(self,src):
         # Taylor approx 

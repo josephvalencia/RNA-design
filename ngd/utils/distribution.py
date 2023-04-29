@@ -1,4 +1,4 @@
-import torch.distributions as D
+from torch.distributions import Categorical, Independent
 import torch.nn as nn
 
 ''' Wraps torch.distributions.Categorical to make it differentiable.
@@ -7,25 +7,25 @@ This will be used for activation maximization to optimize the sequence for a par
 
 class DifferentiableCategorical(nn.Module):
 
-    def __init__(logits,grad_method='score_function'):
+    def __init__(self,logits,grad_method='score_function'):
                 
         self.logits = logits
-        self.dist = D.Independent(Categorical(logits=logits.squeeze(2),1))
+        self.dist = Independent(Categorical(logits=logits.squeeze(2)),1)
         self.grad_method = grad_method 
     
-    def sample():
+    def sample(self):
         return self.dist.sample()
 
-    def sample_n():
+    def sample_n(self):
         return self.dist.sample_n()
 
-    def log_prob():
+    def log_prob(self):
         return self.dist.log_prob()
 
-    def params():
+    def params(self):
         # return the parameters of the distribution
         return self.logits
 
-    def update_logits(new_logits):
+    def update_logits(self,new_logits):
         self.logits = new_logits
-        self.dist = D.Independent(Categorical(logits=new_logits.squeeze(2),1))
+        self.dist = Independent(Categorical(logits=new_logits.squeeze(2)),1)
