@@ -1,23 +1,17 @@
 #!/usr/bin/env python
 import torch
 import argparse
-import pandas as pd
 import random
 import numpy as np
 import os
 import warnings
 
-from argparse import Namespace
-from torch.nn.parallel import DistributedDataParallel as DDP
-
 from bioseq2seq.bin.models import restore_seq2seq_model
-from bioseq2seq.bin.data_utils import iterator_from_fasta, build_standard_vocab, IterOnDevice, test_effective_batch_size
+from bioseq2seq.bin.data_utils import iterator_from_fasta, build_standard_vocab, IterOnDevice
 from bioseq2seq.inputters.corpus import maybe_fastafile_open
-import bioseq2seq.bin.transforms as xfm
 
-from sampler_tgt_conditional import TargetConditionalSampler
-from sampler_src_conditional import SourceConditionalSampler
-#from sampler import DiscreteLangevinSampler
+from design.sampler_tgt_conditional import TargetConditionalSampler
+from design.sampler_src_conditional import SourceConditionalSampler
 
 def parse_args():
 
@@ -45,8 +39,6 @@ def parse_args():
     parser.add_argument("--num_gpus","--g", type = int, default = 1, help = "Number of GPUs to use on node")
     parser.add_argument("--address",default =  "127.0.0.1",help = "IP address for master process in distributed training")
     parser.add_argument("--port",default = "6000",help = "Port for master process in distributed training")
-    parser.add_argument("--mutation_prob",type=float, default=0.25 ,help = "Prob of mutation")
-    parser.add_argument("--max_alpha",type=float, default=0.5 ,help = "Max integration bounds for MDIG")
     
     return parser.parse_args()
 
@@ -60,10 +52,6 @@ def run_helper(rank,args,model,vocab,use_splits=False):
     
     target_pos = args.tgt_pos
     vocab_fields = build_standard_vocab()
-    tgt_text_field = vocab_fields['tgt'].base_field
-    tgt_vocab = tgt_text_field.vocab
-    src_text_field = vocab_fields['src'].base_field
-    src_vocab = src_text_field.vocab
     device = "cpu"
     
     # GPU training
@@ -110,14 +98,13 @@ def run_helper(rank,args,model,vocab,use_splits=False):
     savefile = "{}/{}.{}.{}.{}".format(args.name,input_name,class_name,target_pos,args.attribution_mode)
     if world_size > 1 :
         savefile += f'.rank-{gpu}'
+    print(savefile) 
     tscripts = []
     with maybe_fastafile_open(args.input) as fa:
         for i,record in enumerate(fa):
             #if (i % world_size) == offset:
             tscripts.append(record.id)
     
-    # set up synonymous shuffled copies
-    xforms = {}
     
     print(f'INFERENCE MODE {args.inference_mode}')
     valid_iter = iterator_from_fasta(src=args.input,
@@ -126,7 +113,7 @@ def run_helper(rank,args,model,vocab,use_splits=False):
                                     mode=args.inference_mode,
                                     is_train=False,
                                     max_tokens=args.max_tokens,
-                                    external_transforms=xforms, 
+                                    external_transforms={}, 
                                     rank=rank,
                                     world_size=world_size) 
     valid_iter = IterOnDevice(valid_iter,gpu)
@@ -134,18 +121,17 @@ def run_helper(rank,args,model,vocab,use_splits=False):
     apply_softmax = False
     model.eval()
     sep = '___________________________________' 
-   
     kwargs = dict()
     
     print(f'Running Discrete Langevin wrt. {tgt_class} conditioned on {args.attribution_mode}')
     if args.attribution_mode == 'src': 
-        attributor = SourceConditionalSampler(model,device,vocab,tgt_class, \
-                                            softmax=apply_softmax,sample_size=args.sample_size,minibatch_size=args.minibatch_size,
-                                            times_input=False,smoothgrad=False)
+        attributor = SourceConditionalSampler(model,device,vocab,tgt_class,
+                                            softmax=apply_softmax,sample_size=args.sample_size,
+                                            minibatch_size=args.minibatch_size)
     elif args.attribution_mode == 'tgt':
-        attributor = TargetConditionalSampler(model,device,vocab,tgt_class, \
-                                            softmax=apply_softmax,sample_size=args.sample_size,minibatch_size=args.minibatch_size,
-                                            times_input=False,smoothgrad=False)
+        attributor = TargetConditionalSampler(model,device,vocab,tgt_class,
+                                            softmax=apply_softmax,sample_size=args.sample_size,
+                                            minibatch_size=args.minibatch_size)
 
     attributor.run(savefile,valid_iter,target_pos,args.baseline,tscripts,**kwargs)
   

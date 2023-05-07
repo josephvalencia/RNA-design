@@ -7,3 +7,5 @@ wandb
 venv/
 optseq.egg-info/
 *.png
+*.fa
+TEdesign.egg-info/

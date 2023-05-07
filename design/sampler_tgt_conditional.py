@@ -4,7 +4,7 @@ from Bio import SeqIO
 from Bio import pairwise2
 from Bio.pairwise2 import format_alignment
 from Bio.SeqRecord import SeqRecord
-from base import Attribution, OneHotGradientAttribution
+from design.base import  OneHotGradientAttribution
 from bioseq2seq.bin.transforms import CodonTable, getLongestORF
 import torch.nn.functional as F
 import time
@@ -25,7 +25,7 @@ class TargetConditionalSampler(OneHotGradientAttribution):
         mutation_scores = grads - grad_current_char
         temperature_term = (1.0 - onehot) / (self.alpha * self.scaled_preconditioner()) 
         logits = 0.5 * mutation_scores - temperature_term 
-        logits = self.mask_rare_tokens(logits)
+        #logits = self.mask_rare_tokens(logits)
         proposal_dist = torch.distributions.Categorical(logits=logits.squeeze(2))
         return torch.distributions.Independent(proposal_dist,1)
   
@@ -72,9 +72,10 @@ class TargetConditionalSampler(OneHotGradientAttribution):
             original = src
             original_raw_src = self.get_raw_src(original)
             original_onehot = self.onehot_embed_layer(original)
-            
+            print(original.shape,original_onehot.shape,batch.tgt.shape,src_lens)
             original_loss = self.translation_loss(original_onehot,batch.tgt,src_lens,batch)
-            print('OG loss',-original_loss.item())
+            print(original_loss)
+            quit()
 
             MAX_STEPS = 20000
             self.set_stepsize(0.001)

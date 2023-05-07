@@ -1,41 +1,10 @@
 import torch
 import torch.nn.functional as F
-from functools import partial,reduce
+from functools import reduce
 from typing import Union
-from captum.attr import configure_interpretable_embedding_layer, remove_interpretable_embedding_layer
 from bioseq2seq.utils.loss import NMTLossCompute
-
-class OneHotToEmbedding(torch.nn.Module):
-    '''Converts one-hot encoding into dense embedding'''    
-    
-    def __init__(self,embedding : torch.nn.Embedding):
-        super(OneHotToEmbedding,self).__init__()
-        self.embedding = embedding
-    
-    @property
-    def vocab_size(self):
-        return self.embedding.weight.shape[0]
-    
-    @property
-    def out_dim(self):
-        return self.embedding.weight.shape[1]
-    
-    def forward(self,one_hot_indexes):
-        return F.linear(one_hot_indexes,self.embedding.weight.T) 
-    
-class TensorToOneHot(torch.nn.Module):
-    '''Converts Tensor index into intermediate one-hot encoding'''    
-    def __init__(self,embedding : torch.nn.Embedding):
-        super(TensorToOneHot,self).__init__()
-        self.embedding = embedding
-
-    @property
-    def vocab_size(self):
-        return self.embedding.weight.shape[0]
-
-    def forward(self,indexes):
-        one_hot_indexes = F.one_hot(indexes,self.vocab_size).type(torch.float).requires_grad_(True)
-        return one_hot_indexes
+from optseq.onehot import TensorToOneHot
+from optseq.onehot import OneHotToEmbedding
 
 class PredictionWrapper(torch.nn.Module):
     
@@ -45,19 +14,18 @@ class PredictionWrapper(torch.nn.Module):
         self.model = model
         self.softmax = softmax 
 
-    def forward(self,src,src_lens,decoder_inputs,batch_size):
+    def forward(self,src,memory_lens,decoder_inputs,batch_size):
         
         src = src.transpose(0,1)
-        src, enc_states, memory_bank, src_lengths, enc_cache = self.run_encoder(src,src_lens,batch_size)
+        src, enc_states, memory_bank, src_lengths, enc_cache = self.run_encoder(src,memory_lens,batch_size)
 
         self.model.decoder.init_state(src,memory_bank,enc_states)
-        memory_lengths = src_lens
         
         for i,dec_input in enumerate(decoder_inputs):
             scores, attn = self.decode_and_generate(
                 dec_input,
                 memory_bank,
-                memory_lengths=memory_lengths,
+                memory_lengths=memory_lens,
                 step=i)
         
         return scores
@@ -171,7 +139,7 @@ class Attribution:
     def translation_loss(self,src,tgt,src_lengths,batch):
     
         src = src.transpose(0,1)
-        
+        print(src.shape,tgt.shape,src_lengths) 
         outputs, enc_attns, attns = self.model(
             src, tgt, src_lengths, bptt=False,
             with_align=False)
@@ -201,9 +169,8 @@ def get_module_by_name(parent: Union[torch.Tensor, torch.nn.Module],
 
 class OneHotGradientAttribution(Attribution):
 
-    def __init__(self,model,device,vocab,tgt_class,softmax=False,sample_size=None,minibatch_size=None,times_input=False,smoothgrad=False):
+    def __init__(self,model,device,vocab,tgt_class,softmax=False,sample_size=None,minibatch_size=None):
         
-        self.smoothgrad = smoothgrad
         # augment Embedding with one hot utilities
         embedding_modulelist = get_module_by_name(model,'encoder.embeddings.make_embedding.emb_luts')
         old_embedding = embedding_modulelist[0] 

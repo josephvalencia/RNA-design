@@ -1,25 +1,12 @@
 import torch
 from Bio.Seq import Seq
 from Bio import SeqIO
-from Bio import pairwise2
-from Bio.pairwise2 import format_alignment
 from Bio.SeqRecord import SeqRecord
-from base import Attribution, OneHotGradientAttribution
+from design.base import OneHotGradientAttribution
 from bioseq2seq.bin.transforms import CodonTable, getLongestORF
-import torch.nn.functional as F
 import time
-import numpy as np
 
 class SourceConditionalSampler(OneHotGradientAttribution):
- 
-    def multidim_synonymize(self,true_src,alt_src):
-        
-        batch_size = alt_src.shape[0]
-        storage = []  
-        for b in range(batch_size):
-            result = self.reject_missense(true_src[b,:,:].unsqueeze(0),alt_src[b,:,:].unsqueeze(0))
-            storage.append(result)
-        return torch.cat(storage,dim=0)
         
     def reject_missense(self,true_src,alt_src):
         
