@@ -137,7 +137,7 @@ def run_helper(rank,args,model,vocab,use_splits=False):
                                 readable_fn=to_nucleotide,
                                 device=device, 
                                 mode='optimize',optimizer='adam',grad='normal')
-                                #mode='sample',mcmc='gibbs_with_gradients')
+                                #mode='sample',mcmc='langevin')
     
     print(f'Running maximizer with {maximizer.mode} and {maximizer.driver}') 
     best_seq,best_loss,results = maximizer.fit(max_iter=10000,stalled_tol=5000)

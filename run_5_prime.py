@@ -17,7 +17,7 @@ def to_nucleotide(dense):
 
 if __name__ == "__main__":
 
-    device = "cpu"
+    device = "cuda:0"
     module = MeanRibosomeLoadModule.load_from_checkpoint(
                 "models/optimus_5prime/checkpoints/epoch=2-val_loss=0.1396.ckpt",map_location=device)
     model = module.model
@@ -34,7 +34,8 @@ if __name__ == "__main__":
                                 readable_fn=to_nucleotide,
                                 device=device, 
                                 mode='optimize',optimizer='adam',grad='normal')
-                                #mode='sample',mcmc='gibbs_with_gradients')
+                                #mode='sample',mcmc='gibbs_with_gradients',
+                                #max_iter=10000)
     
     best_seq,best_loss,results = maximizer.fit(max_iter=10000,stalled_tol=5000)
     readable = to_nucleotide(best_seq)
