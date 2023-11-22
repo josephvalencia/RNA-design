@@ -220,7 +220,7 @@ class SourceConditionalSampler(OneHotGradientAttribution):
                                                 self.decoder_input(batch_size,tgt_prefix),
                                                 batch_size,class_token,ratio=True)
             
-            print(f'P(<NC>) = {best_probs[:,:,self.nc_token].item():.3f}, P(<PC>) = {best_probs[:,:,self.pc_token].item():.3f}')
+            print(f'P(<NC>) = {best_probs[:,:,self.nc_token].item():.6f}, P(<PC>) = {best_probs[:,:,self.pc_token].item():.6f}')
             print(sep)
             description = f'step_found : {best_step}, diff:{diff_original}/{best_seq.shape[0]*best_seq.shape[1]}, P(<NC>):{original_probs[:,:,5].item():.3f}->{best_probs[:,:,5].item():.3f}'
             rec = SeqRecord(Seq(''.join(raw_src)),id=f'{tscript}-MUTANT',description=description)
