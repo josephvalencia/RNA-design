@@ -1,0 +1,4 @@
+python train_saluki.py --model_dim 128 --n_layers 6 --downsample --batch_size 32 
+python train_saluki.py --model_dim 128 --n_layers 6 --downsample --dropout 0.5 --weight_decay 0.005 
+python train_saluki.py --model_dim 64 --n_layers 6 --downsample 
+python train_saluki.py --model_dim 64 --n_layer 3
