@@ -23,10 +23,10 @@ def make_dataset_splits(data,random_seed=65):
     train,val = train_test_split(train,test_size=0.1,random_state=random_seed)
     return DegradationLoader(test),DegradationLoader(val),DegradationLoader(train)
 
-def numericalize_and_batch(x,leading_special=True,pad_to_max_len=True,is_human=False):
+def numericalize_and_batch(x,include_aux=True,pad_to_max_len=True,is_human=False):
     '''Transforms a string of nucleotides into a list of integers'''
 
-    mapping = {'A' : 0, 'C' : 1, 'G' : 2, 'T' : 3, '<score>' :4,'<pad>' : 5}
+    mapping = {'A' : 0, 'C' : 1, 'G' : 2, 'T' : 3} # '<score>' :4,'<pad>' : 5}
     B = defaultdict(list) 
     
     for entry in x:
@@ -36,20 +36,25 @@ def numericalize_and_batch(x,leading_special=True,pad_to_max_len=True,is_human=F
         splice_sites = entry['splice_sites']
         coding_starts = entry['codon_starts']
         start_pos = coding_starts.index(1.0)
-        # fixed length like in paper 
-        if pad_to_max_len:
-            diff = 12288 - len(seq)
-            if diff > 0:
-                seq = seq + [mapping['<pad>']]*diff
-                splice_sites = splice_sites + [0]*diff
-                coding_starts = coding_starts + [0]*diff
+        
         # onehot_encode sequence
         seq = torch.tensor(seq,dtype=torch.int64)
-        seq = F.one_hot(seq,num_classes=6).float()
-        # include two binary auxiliary tracks 
-        splice_sites = torch.tensor(splice_sites,dtype=torch.float32).unsqueeze(1)
-        coding_starts = torch.tensor(coding_starts,dtype=torch.float32).unsqueeze(1)
-        seq = torch.cat([seq,splice_sites,coding_starts],dim=1)
+        seq = F.one_hot(seq,num_classes=4).float()
+        # fix length like in paper 
+        if pad_to_max_len:
+            diff = 12288 - seq.shape[0]
+            if diff > 0:
+                #(left,right,top,bottom) 
+                seq = F.pad(seq,(0,0,0,diff),'constant',0.0)
+                splice_sites = splice_sites + [0]*diff
+                coding_starts = coding_starts + [0]*diff
+
+        if include_aux: 
+            # include two binary auxiliary tracks 
+            splice_sites = torch.tensor(splice_sites,dtype=torch.float32).unsqueeze(1)
+            coding_starts = torch.tensor(coding_starts,dtype=torch.float32).unsqueeze(1)
+            seq = torch.cat([seq,splice_sites,coding_starts],dim=1)
+        
         B['seq'].append(seq) 
         # add the target
         half_life = torch.tensor(entry['half_life'],dtype=torch.float32)
@@ -61,15 +66,18 @@ def numericalize_and_batch(x,leading_special=True,pad_to_max_len=True,is_human=F
     half_lives = torch.stack(B['half_life'],dim=0)
     return seq,B['len'],half_lives,is_human
 
-def build_datapipe(fname,batch_size=None,max_tokens=60000,
-                   pad_to_max_len=True,is_human=False):
+def build_datapipe(fname,batch_size=None,
+                   max_tokens=60000,
+                   include_aux=True,
+                   pad_to_max_len=True,
+                   is_human=False):
     
     data = parse_json(fname) 
     dataset = DegradationLoader(data)
     dataset = dataset.shuffle()
 
     stack_fn = partial(numericalize_and_batch,
-                       leading_special=True,
+                       include_aux=include_aux,
                        pad_to_max_len=pad_to_max_len,
                        is_human=is_human)
 
@@ -88,17 +96,19 @@ def build_datapipe(fname,batch_size=None,max_tokens=60000,
     dataset = dataset.shuffle()
     return dataset
 
-def dataloader_from_json(data_dir,split,batch_size=None,max_tokens=60000):
+def dataloader_from_json(data_dir,split,include_aux,batch_size=None,max_tokens=60000):
     '''Use datapipes to make dataloaders and numericalize utr seq'''
 
     dataset1 = build_datapipe(f'{data_dir}/human/{split}.json',
                               batch_size=batch_size,
                               max_tokens=max_tokens,
-                              is_human=True)
+                              is_human=True,
+                              include_aux=include_aux)
     dataset2 = build_datapipe(f'{data_dir}/mouse/{split}.json',
                               batch_size=batch_size,
                               max_tokens=max_tokens,
-                              is_human=False)
+                              is_human=False,
+                              include_aux=include_aux)
 
     # alternate batches from human and mouse datasets
     dataset = dataset1.mux_longest(dataset2)

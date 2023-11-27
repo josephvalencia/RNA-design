@@ -2,6 +2,7 @@ import torch
 from torch import optim, nn
 import lightning.pytorch as pl
 import torchmetrics
+import torch.nn.functional as F
 from models.utils.evidential import EvidentialLoss, EvidentialRegressionOutputLayer, ERVirtualAdversarialLoss
 from models.utils.bytenet import ByteNetRNNRegression
 
@@ -20,6 +21,7 @@ class MeanRibosomeLoad(ByteNetRNNRegression):
         super().__init__(n_outputs=1,
                         embed_dim=embed_dim,
                         reduction='first',
+                        pool_type='max',
                         model_dim=model_dim,
                         n_layers=n_layers,
                         downsample=downsample,
@@ -28,11 +30,19 @@ class MeanRibosomeLoad(ByteNetRNNRegression):
                         dropout=dropout,
                         max_dilation_factor=max_dilation_factor)
 
-        self.embedding = nn.Linear(4,embed_dim)
+        #self.embedding = nn.Linear(4,embed_dim)
+        self.in_cnn = nn.Conv1d(in_channels=4,
+                                out_channels=embed_dim,
+                                kernel_size=5,
+                                padding='same')
+        self.layernorm = nn.InstanceNorm1d(embed_dim,affine=True)
     
     def forward(self,x):
         '''x : torch.Tensor of shape (batch_size,sequence_length)'''
-        x = self.embedding(x)
+        #x = self.embedding(x)
+        x = self.in_cnn(x.permute(0,2,1))
+        x = F.gelu(self.layernorm(x))
+        x = x.permute(0,2,1)
         return super().forward(x)
 
 class OptimusFivePrime(torch.nn.Module):
@@ -114,6 +124,7 @@ class MeanRibosomeLoadModule(pl.LightningModule):
     def setup_batch(self,batch):
         utr = torch.stack(batch['utr'],dim=0).to(self.device)
         utr = torch.nn.functional.one_hot(utr.squeeze(),num_classes=4).float()#.permute(0,2,1).float()
+        print(f'utr shape {utr.shape}')
         target = torch.stack(batch['mrl'],dim=0).to(self.device).unsqueeze(1)
         return utr,target
     

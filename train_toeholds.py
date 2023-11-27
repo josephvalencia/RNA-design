@@ -12,22 +12,34 @@ if __name__ == "__main__":
     val_loader = dataloader_from_dataset(valid_set,batch_size) 
     test_loader = dataloader_from_dataset(test_set,batch_size)
     
-    wandb_logger = pl.loggers.WandbLogger(project="toeheold_onoff")
+    wandb_logger = pl.loggers.WandbLogger(project="toehold_onoff")
     wandb_name = wandb_logger.experiment.name
-    
-    stop_metric = "val_loss"
+  
+    max_epochs = 100 
+    patience = max_epochs // 10
+
+    stop_metric = "val_r2"
     checkpoint_callback = ModelCheckpoint(
                         dirpath="models/toeholds/checkpoints",
                         monitor=stop_metric,
                         save_top_k=5,
                         every_n_epochs=1,
-                        filename=wandb_name+"-{epoch}-{val_loss:.4f}")
+                        filename=wandb_name+"-{epoch}-{val_loss:.4f}_{val_r2:.4f}",
+                        mode="max")
 
-    early_stopping = EarlyStopping(stop_metric,patience=5)
+    steps_per_epoch = 0
+    for batch in train_loader:
+        steps_per_epoch += 1
+    print(f'N_STEPS_PER_EPOCH: {steps_per_epoch}')
+    
+    early_stopping = EarlyStopping(stop_metric,patience=patience,mode="max")
 
     # train the model
-    module = ToeholdRegressor() 
-    trainer = pl.Trainer(max_epochs=50,devices=1,
+    module = ToeholdRegressor(n_layers=2,
+                              model_dim=64,
+                              steps_per_epoch=steps_per_epoch,
+                              max_epochs=max_epochs) 
+    trainer = pl.Trainer(max_epochs=max_epochs,devices=1,
                          accelerator="gpu",logger=wandb_logger,
                          callbacks=[checkpoint_callback,early_stopping])
     

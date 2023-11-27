@@ -4,6 +4,7 @@ import lightning.pytorch as pl
 import torchmetrics
 from models.utils.evidential import EvidentialLoss
 from models.utils.bytenet import ByteNetRNNRegression
+import torch.nn.functional as F
 
 class ToeholdOnOff(ByteNetRNNRegression):
     
@@ -15,11 +16,12 @@ class ToeholdOnOff(ByteNetRNNRegression):
                  rnn_type='gru',
                  evidential=False,
                  dropout=0.2,
-                 max_dilation_factor=1):
+                 max_dilation_factor=2):
         
-        super().__init__(n_outputs=1,
+        super().__init__(n_outputs=2,
                         embed_dim=embed_dim,
                         reduction='first',
+                        pool_type='max',
                         model_dim=model_dim,
                         n_layers=n_layers,
                         downsample=downsample,
@@ -27,24 +29,43 @@ class ToeholdOnOff(ByteNetRNNRegression):
                         evidential=evidential,
                         dropout=dropout,
                         max_dilation_factor=max_dilation_factor)
-        self.embedding = nn.Linear(5,embed_dim)
-    
+        
+        self.in_cnn = nn.Conv1d(in_channels=4,
+                                out_channels=embed_dim,
+                                kernel_size=5,
+                                padding='same')
+        self.layernorm = nn.InstanceNorm1d(embed_dim,affine=True)
+        #self.layernorm = nn.LayerNorm(embed_dim,elementwise_affine=True)
+
+    def reshaped_layernorm(self,x):
+        x = x.permute(0,2,1)
+        x = self.layernorm(x)
+        return x.permute(0,2,1)
+
     def forward(self,x):
         '''x : torch.Tensor of shape (batch_size,sequence_length)'''
 
-        x = self.embedding(x)
+        #x = self.embedding(x)
+        x = self.in_cnn(x.permute(0,2,1))
+        #x = self.reshaped_layernorm(x)
+        x = self.layernorm(x)
+        x = F.gelu(x)
+        x = x.permute(0,2,1)
+
         return super().forward(x)
 
 class ToeholdRegressor(pl.LightningModule):
 
     def __init__(self,
-                n_layers=3,
-                model_dim=128,
-                embed_dim=128,
+                n_layers,
+                model_dim,
+                steps_per_epoch,
+                max_epochs,
+                embed_dim=64,
                 downsample=True,
                 rnn_type='gru',
                 evidential=False,
-                dropout=0.2,
+                dropout=0.3,
                 max_dilation_factor=1,
                 learning_rate=1e-3):
 
@@ -57,24 +78,30 @@ class ToeholdRegressor(pl.LightningModule):
                                         evidential=evidential,
                                         dropout=dropout,
                                         max_dilation_factor=max_dilation_factor)
+
+        self.steps_per_epoch = steps_per_epoch
+        self.max_epochs = max_epochs
+        self.learning_rate = learning_rate
+        self.save_hyperparameters()
         self.mse_train = nn.MSELoss()
         self.mse_val = nn.MSELoss()
-        self.r2_score = torchmetrics.R2Score()
+        self.r2_score = torchmetrics.R2Score(num_outputs=2)
         self.uq_spearman = torchmetrics.SpearmanCorrCoef()
         self.rmse = torchmetrics.MeanSquaredError(squared=False) 
         self.mae = torchmetrics.MeanAbsoluteError()
         self.er_loss_train = EvidentialLoss(error_weight=0.05,reduction='mean')
         self.er_loss_val = EvidentialLoss(error_weight=0.05,reduction='mean')
         self.metric = torchmetrics.MeanSquaredError()
-        self.learning_rate = 1e-4
 
     def forward(self,x):
         return self.model(x)
 
     def setup_batch(self,batch):
         seq = torch.stack(batch['seq'],dim=0).to(self.device)
-        seq = torch.nn.functional.one_hot(seq.squeeze(),num_classes=5).float()
-        target = torch.stack(batch['on'],dim=0).to(self.device).unsqueeze(1)
+        seq = torch.nn.functional.one_hot(seq,num_classes=4).float()
+        on = torch.stack(batch['on'],dim=0).to(self.device).unsqueeze(1)
+        off = torch.stack(batch['off'],dim=0).to(self.device).unsqueeze(1)
+        target = torch.cat([on,off],dim=1) 
         return seq,target
     
     def training_step(self, batch, batch_idx):
@@ -109,8 +136,13 @@ class ToeholdRegressor(pl.LightningModule):
         self.log("val_r2", self.r2_score,batch_size=B)
 
     def configure_optimizers(self):
-        optimizer = optim.AdamW(self.parameters(), lr=1e-3)
-        return optimizer
+        optimizer = optim.AdamW(self.parameters(), lr=self.learning_rate,weight_decay=1e-3)
+        scheduler = optim.lr_scheduler.OneCycleLR(optimizer, max_lr=1e-3,
+                                                  steps_per_epoch=self.steps_per_epoch,
+                                                  epochs=self.trainer.max_epochs,
+                                                  pct_start=0.05)
+        schedule_config = {"scheduler": scheduler, "interval": "step", "frequency": 1}
+        return {"optimizer": optimizer, "lr_scheduler": schedule_config}
 
 def stem_base_pairing(pwm): 
     

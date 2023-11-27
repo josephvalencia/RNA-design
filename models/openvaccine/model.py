@@ -25,6 +25,7 @@ class SiteWiseDegradation(ByteNetRNNRegression):
                         model_dim=model_dim,
                         n_layers=n_layers,
                         downsample=downsample,
+                        pool_type='max',
                         rnn_type=rnn_type,
                         evidential=evidential,
                         dropout=dropout,

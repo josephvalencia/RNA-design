@@ -37,4 +37,4 @@ if __name__ == "__main__":
                          gradient_clip_val=0.5)
     trainer.fit(module,train_loader,val_loader)
     print(f'Best model: {checkpoint_callback.best_model_path}')
-    trainer.test(module,test_loader,ckpt_path="best")
+    #trainer.test(module,test_loader,ckpt_path="best")

@@ -15,6 +15,7 @@ class ToeholdData(dp.iter.IterDataPipe):
     def __iter__(self):
         for sample in self.df.to_dict('records'):
             example = {'switch_sequence' : list(sample['switch_sequence']),
+                        'trigger_sequence' : list(sample['trigger_sequence']),
                         'on' : sample['on_value'],
                         'off' : sample['off_value'],
                         'onoff' : sample['onoff_value']}     
@@ -37,7 +38,8 @@ def apply_transform(x):
     '''Transforms a string of nucleotides into a list of integers'''
 
     mapping = {'A' : 0, 'C' : 1, 'G' : 2, 'T' : 3,'<reg>' : 4}
-    seq = [mapping['<reg>']]+[mapping[x] for x in x['switch_sequence']]
+    #seq = [mapping[x] for x in x['switch_sequence']]
+    seq = [mapping[x] for x in x['trigger_sequence']]
     seq = torch.tensor(seq,dtype=torch.int64)
     on = torch.tensor(x['on'],dtype=torch.float32)
     off = torch.tensor(x['off'],dtype=torch.float32)

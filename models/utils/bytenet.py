@@ -16,9 +16,12 @@ class ByteNetLayer(torch.nn.Module):
         super().__init__()
 
         lower_dim = dim // 2 if downsample else dim
-        self.layernorm1 = nn.InstanceNorm1d(dim,affine=True)
-        self.layernorm2 = nn.InstanceNorm1d(lower_dim,affine=True)
-        self.layernorm3 = nn.InstanceNorm1d(lower_dim,affine=True)
+        #self.layernorm1 = nn.InstanceNorm1d(dim,affine=True)
+        #self.layernorm2 = nn.InstanceNorm1d(lower_dim,affine=True)
+        #self.layernorm3 = nn.InstanceNorm1d(lower_dim,affine=True)
+        self.layernorm1 = nn.LayerNorm(dim,elementwise_affine=True)
+        self.layernorm2 = nn.LayerNorm(lower_dim,elementwise_affine=True)
+        self.layernorm3 = nn.LayerNorm(lower_dim,elementwise_affine=True)
 
         self.dropout1 = nn.Dropout(dropout)
 
@@ -36,18 +39,25 @@ class ByteNetLayer(torch.nn.Module):
                               out_channels=dim,
                               kernel_size=1)
         
+    def reshaped_layernorm(self,layernorm,x):
+        x = x.permute(0,2,1)
+        x = layernorm(x)
+        return x.permute(0,2,1)
 
     def forward(self,x):
         '''x : torch.Tensor of shape (batch_size,embedding_size,sequence_length)'''
 
         residual = x  
-        x = self.layernorm1(x)
+        #x = self.layernorm1(x)
+        x = self.reshaped_layernorm(self.layernorm1,x)
         x = F.gelu(x)
         x = self.cnn1(x)
-        x = self.layernorm2(x)
+        #x = self.layernorm2(x)
+        x = self.reshaped_layernorm(self.layernorm2,x)
         x = F.gelu(x)
         x = self.cnn2(x)
-        x = self.layernorm3(x)
+        #x = self.layernorm3(x)
+        x = self.reshaped_layernorm(self.layernorm3,x)
         x = F.gelu(x)
         x = self.cnn3(x)
         return self.dropout1(x)+residual
@@ -65,6 +75,7 @@ class ByteNetRNNRegression(torch.nn.Module):
             raise ValueError('reduction must be one of "mean","first","none"')
         self.reduction = reduction
         self.pool_type = pool_type
+        self.evidential = evidential 
 
         # option for exponentially increasing dilation rate up to 2^max_dilation_factor
         dilation_factor = lambda l: 2**(l % max_dilation_factor) if max_dilation_factor > 0 else 1
@@ -84,8 +95,8 @@ class ByteNetRNNRegression(torch.nn.Module):
             self.pool =  nn.MaxPool1d(2)
         elif self.pool_type == 'avg':
             self.pool = nn.AvgPool1d(2)  
-     
-        if evidential:
+
+        if self.evidential:
             self.output = EvidentialRegressionOutputLayer(model_dim)
         else:
             self.output = nn.Linear(model_dim,n_outputs)
