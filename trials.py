@@ -21,24 +21,41 @@ def report_example(trajectories,
     n = len(trajectories.keys())
     cols = min(cols,n)
     rows = math.ceil(n/cols)
-    fig,ax = plt.subplots(rows,cols,figsize=(8,3),sharex=True,sharey=True)    
-    
-    for ax,(trial,results) in zip(ax.ravel(),trajectories.items()):
+    if len(trajectories.keys()) == 1:
+        plt.figure(figsize=(8,2))
+        results = list(trajectories.values())[0]
         results = [-x for x in results]
         smoothed_results = convolve(results,np.ones(smooth_window),mode="valid") / smooth_window
         smoothed_domain = [smooth_window+x for x in range(smoothed_results.size)] 
         max = np.max(results)
         begin = results[0]
         delta = max - begin
-        ax.plot(smoothed_domain,smoothed_results,c='blue')
-        ax.plot(results,alpha=0.2,c='grey')
-        ax.axhline(begin,c='red',linestyle='--')
-        ax.axhline(max_train_val,c='black',linestyle='--')
+        plt.plot(smoothed_domain,smoothed_results,c='blue')
+        plt.plot(results,alpha=0.2,c='grey')
+        plt.axhline(begin,c='black',linestyle='--')
+        plt.axhline(max_train_val,c='red',linestyle='--')
         report = f'{begin:.3f}->{max:.3f}={delta:.3f} ({smoothed_results[-1]:.3f})' 
-        ax.set_title(trial) 
-        sns.despine(ax=ax)
-    
-    fig.add_subplot(111, frameon=False)
+        plt.title('Gibbs with Gradients') 
+        sns.despine()
+
+    else: 
+        fig,ax = plt.subplots(rows,cols,figsize=(8,3),sharex=True,sharey=True)    
+        for ax,(trial,results) in zip(ax.ravel(),trajectories.items()):
+            results = [-x for x in results]
+            smoothed_results = convolve(results,np.ones(smooth_window),mode="valid") / smooth_window
+            smoothed_domain = [smooth_window+x for x in range(smoothed_results.size)] 
+            max = np.max(results)
+            begin = results[0]
+            delta = max - begin
+            ax.plot(smoothed_domain,smoothed_results,c='blue')
+            ax.plot(results,alpha=0.2,c='grey')
+            ax.axhline(begin,c='black',linestyle='--')
+            ax.axhline(max_train_val,c='red',linestyle='--')
+            report = f'{begin:.3f}->{max:.3f}={delta:.3f} ({smoothed_results[-1]:.3f})' 
+            ax.set_title(trial) 
+            sns.despine(ax=ax)
+        
+    #fig.add_subplot(111, frameon=False)
     # hide tick and tick label of the big axis
     plt.tick_params(labelcolor='none', which='both', top=False, bottom=False, left=False, right=False)
     plt.ylabel(property_name,fontsize=14)
@@ -113,18 +130,18 @@ def run_all_trials(designer : NucleotideDesigner,
         seed_sequence = designer.seed_sequence()
         seed_as_nuc = designer.dense_decode(seed_sequence)
         
+        '''
         short_names={'normal': 'STE','softmax':'STE-SM',
                      'gumbel_softmax':'STE-GS','reinforce':'REINFORCE'}
         # all the optimization modes 
         for norm in ['instance', None]: 
-            #for grad in ['normal','softmax','gumbel_softmax','reinforce']: 
-            for grad in ['softmax','reinforce']: 
+            for grad in ['normal','softmax','gumbel_softmax','reinforce']: 
                 maximizer = template(seed_sequence,mode='optimize',grad=grad,norm=norm)
                 best_seq,improvement,results = maximizer.fit(max_iter=args.n_iter,
                                                              stalled_tol=args.tol)
                 best_as_nuc = designer.dense_decode(best_seq)
                 name = f'PR-{short_names[grad]}' if norm is None else f'PR-{short_names[grad]}-norm'
-                entry = {'trial' :  name, 'difference' : -improvement.item(),
+                entry = {'seq' : i, 'trial' :  name, 'difference' : -improvement.item(),
                         'initial_loss' : -results[0], 'final_loss' : -results[-1], 
                         'optimized_seq' : best_as_nuc, 'original_seq' : seed_as_nuc}
                 storage.append(entry)
@@ -134,6 +151,7 @@ def run_all_trials(designer : NucleotideDesigner,
                        args.max_train_val,
                        args.property,
                        cols=4)
+        ''' 
         
         mc_trajectories = {} 
         mcmc_names={'gibbs_with_gradients': 'MCMC-GWG',
@@ -141,12 +159,13 @@ def run_all_trials(designer : NucleotideDesigner,
                     'langevin':'MCMC-DMALA'}
         # all the sampling modes 
         #for mcmc in ['gibbs_with_gradients','path_auxiliary']:
-        for mcmc in ['gibbs_with_gradients','langevin']:
+        #for mcmc in ['gibbs_with_gradients','langevin']:
+        for mcmc in ['gibbs_with_gradients']:
             maximizer = template(seed_sequence,mode='sample',mcmc=mcmc)
             best_seq,improvement,results = maximizer.fit(max_iter=args.n_iter,stalled_tol=args.tol)
             best_as_nuc = designer.dense_decode(best_seq) 
             name = mcmc_names[mcmc] 
-            entry = {'trial' : name, 'difference' : -improvement.item(),
+            entry = {'seq' : i, 'trial' : name, 'difference' : -improvement.item(),
                      'initial_loss' : -results[0], 'final_loss' : -results[-1], 
                       'optimized_seq' : best_as_nuc, 'original_seq' : seed_as_nuc}
             mc_trajectories[name] = results 
@@ -157,15 +176,17 @@ def run_all_trials(designer : NucleotideDesigner,
                        args.property,
                        cols=4)
 
-    summarize_trials(storage,args.results_name)
+    summarize_trials(storage,args.results_name,args.property)
 
-def summarize_trials(storage,name):
+def summarize_trials(storage,name,property):
 
     df = pd.DataFrame(storage)
-    df.to_csv('trial_results.csv')
+    df.to_csv(f'{name}.csv')
     sns.boxplot(y='trial',x='difference',data=df)
+    sns.despine()
+    plt.xlabel(f'Improvement in {property}')
     plt.tight_layout()
-    plt.savefig('summary.pdf')
+    plt.savefig(f'plots/{name}.pdf')
     plt.close()
 
 def tune_langevin(designer : NucleotideDesigner,
@@ -179,7 +200,22 @@ def tune_langevin(designer : NucleotideDesigner,
         seed_sequence = designer.seed_sequence()
         as_nuc = designer.dense_decode(seed_sequence)
         # all the sampling modes 
-        for lr in [0.001,0.1,0.5,1.0,5.0,10,100,1000]:
+        for lr in [1.0,5.0,10,50,100,1000]:
+            for beta in [0.5,0.7,0.8,0.9,0.95,0.99]:
+                for eps in [1,0,0.1,0.01,0.001,0.0001,0.00001]:
+                    maximizer = template(seed_sequence,
+                                         mode='sample',
+                                         mcmc='langevin',
+                                         learning_rate=lr,
+                                         beta=beta,
+                                         eps=eps)
+                    best_seq,improvement,results = maximizer.fit(max_iter=args.n_iter,stalled_tol=args.tol)
+                    best_as_nuc = designer.dense_decode(best_seq) 
+                    trial = f'langevin-{lr}-{beta}-{eps}' 
+                    entry = {'trial' :  trial, 'difference' : improvement.item(),
+                              'optimized_seq' : best_as_nuc, 'original_seq' : as_nuc}
+                    storage.append(entry)
+                    trajectories[trial] = results
             maximizer = template(seed_sequence,
                                  mode='sample',
                                  mcmc='langevin',

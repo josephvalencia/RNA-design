@@ -2,7 +2,7 @@ import torch
 from models.optimus_5prime.model import MeanRibosomeLoadModule
 from models.optimus_5prime.data import *
 from seqopt.oracle import NucleotideDesigner
-from trials import parse_args, setup_model_from_lightning, lower_confidence_bound,run_all_trials
+from trials import parse_args, setup_model_from_lightning, lower_confidence_bound,run_all_trials,tune_langevin
 from functools import partial
 
 class MRLDesigner(NucleotideDesigner):
@@ -18,6 +18,9 @@ class MRLDesigner(NucleotideDesigner):
     
         def dense_decode(self,seq):
             ''' A method to convert a dense sequence to a readable nucleotide sequence'''
+            if seq.dim() > 1:
+                print(seq.shape) 
+                seq = seq[0,:]
             as_list = seq.cpu().numpy().ravel().tolist()
             mapping = 'ACGT'
             nucs = [mapping[x] for x in as_list]
@@ -47,5 +50,6 @@ if __name__ == "__main__":
         designer = MRLDesigner(mrl)
 
     # all PR and MCMC trials
+    #langevin_hparams = tune_langevin(designer,args)
     run_all_trials(designer,args)
 
