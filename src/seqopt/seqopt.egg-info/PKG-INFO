@@ -1,3 +1,12 @@
+Metadata-Version: 2.1
+Name: seqopt
+Version: 0.0.post1.dev16+g65f4b48.d20231209
+Summary: A lightweight library enabling model-based optimization using PyTorch models of nucleotide properties
+Author-email: Joseph Valencia <jdv423@gmail.com>
+Project-URL: Repository, https://github.com/josephvalencia/RNA-design.git
+Description-Content-Type: text/x-rst
+Requires-Dist: torch>=1.9.0
+
 # RNA-design
 
 This repo implements `seqopt`, a lightweight library enabling users to perform model-based optimization using arbitrary nucleotide property models written in PyTorch. It can be installed via

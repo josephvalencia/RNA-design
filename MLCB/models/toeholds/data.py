@@ -28,6 +28,12 @@ def make_dataset_splits(df,random_seed):
     plt.tight_layout()
     plt.savefig('plots/hist_on_off.png')
     plt.close()
+    print('BEFORE') 
+    print(df_train['onoff_value'].describe())
+    print(df_train['onoff_value'].quantile([i*0.1 for i in range(11)]))
+    df_train['quantile'] = pd.qcut(df_train['onoff_value'],10,duplicates='drop',labels=list(range(10)))
+    print('AFTER') 
+    df_train = df_train[df_train['quantile'] < 9]
     print(df_train['onoff_value'].describe())
     print(df_train['onoff_value'].quantile([i*0.1 for i in range(11)]))
     splits = train_test_split(df_train,test_size=0.1,random_state=random_seed)

@@ -30,7 +30,7 @@ if __name__ == "__main__":
     early_stopping = EarlyStopping(stop_metric,patience=5)
     
     # train the model
-    module = MeanRibosomeLoadModule() 
+    module = MeanRibosomeLoadModule(evidential=False) 
     trainer = pl.Trainer(max_epochs=50,devices=1,
                          accelerator="gpu",logger=wandb_logger,
                          callbacks=[checkpoint_callback,early_stopping],

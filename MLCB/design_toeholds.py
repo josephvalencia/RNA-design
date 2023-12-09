@@ -61,7 +61,8 @@ class ToeholdDesigner(NucleotideDesigner):
             a_prime = ''.join(first_stem_partner)
             b_prime = ''.join(second_stem_partner)
             #print(f'a: {a}, b: {b}, a\': {a_prime}, b\': {b_prime}')
-            toehold = template+shine_dalgarno+second_stem_partner+start_codon+first_stem_partner
+            #toehold = template+shine_dalgarno+second_stem_partner+start_codon+first_stem_partner
+            toehold = template 
             print(len(toehold))
             #toehold = 'AAAAAAATTAAACATTGAAAAGGTGTCTAGAACAGAGGAGACTAGACATGTTTTCAATG'
             #toehold = self.train_df.iloc[random.randint(0,len(self.train_df)-1)]['switch_sequence'] 

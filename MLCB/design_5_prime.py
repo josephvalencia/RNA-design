@@ -19,7 +19,6 @@ class MRLDesigner(NucleotideDesigner):
         def dense_decode(self,seq):
             ''' A method to convert a dense sequence to a readable nucleotide sequence'''
             if seq.dim() > 1:
-                print(seq.shape) 
                 seq = seq[0,:]
             as_list = seq.cpu().numpy().ravel().tolist()
             mapping = 'ACGT'

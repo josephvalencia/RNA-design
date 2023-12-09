@@ -4,8 +4,8 @@ import torch.nn as nn
 from seqopt.categorical import DifferentiableCategorical
 from seqopt.mcmc import LangevinSampler, PathAuxiliarySampler, GibbsWithGradientsSampler, RandomSampler, SimulatedAnnealingSampler
 from seqopt.ngd import NaturalGradientDescent
+from seqopt.io import FastaFile
 from tqdm import tqdm
-from biotite.sequence.io.fasta import FastaFile
 
 class OracleMaximizer:
 
@@ -15,6 +15,7 @@ class OracleMaximizer:
                 class_dim : int,
                 oracles : List[Union[Callable,nn.Module]],
                 loss_items : List[Tuple[Union[Callable,None],Union[torch.tensor,None],torch.tensor]],
+                callbacks : List[Callable], 
                 onehot_fn : Callable,
                 readable_fn : Callable,
                 device : str = "cpu", 
@@ -32,6 +33,7 @@ class OracleMaximizer:
         self.loss_items = loss_items
         self.onehot_fn = onehot_fn
         self.to_nucleotide = readable_fn
+        self.callbacks = callbacks
         self.device = device
         self.seed_sequence = seed_sequence.to(self.device)
         self.mode = mode
@@ -122,6 +124,12 @@ class OracleMaximizer:
         if self.mode == 'sample':
             total_loss = -total_loss 
         return total_loss
+    
+    def apply_callbacks(self,sequence):
+        '''Apply any transformations to the sequence after each sampling step'''
+        for callback in self.callbacks:
+            sequence = callback(sequence)
+        return sequence
      
     def optimize_step(self,sequence):
             
@@ -162,13 +170,6 @@ class OracleMaximizer:
             self.optimizer.step(per_sample_grads) 
         else: 
             loss = closure()
-            ''' 
-            l2_norm = lambda x : torch.sqrt(x.reshape(-1).pow(2).sum())
-            for name,param in self.driver.named_parameters():
-                if name == 'logits': 
-                    to_print = 'grad is none' if param.grad is None else f'grad norm is {l2_norm(param.grad)}' 
-                    print(to_print)
-            '''
             self.optimizer.step()
         return loss
 
@@ -193,49 +194,45 @@ class OracleMaximizer:
         if not self.mode == 'optimize':
             initial_loss *= -1
         results = [initial_loss.detach().item()]
+
         print(f'initial results: {results}')
         print(f'Fitting OracleMaximizer using {self.driver}')
         print(f'Seed sequence {readable} loss = {initial_loss.item():.3f}')
         stalled_counter = 0
         pbar = tqdm(range(max_iter))
-        #pbar = range(max_iter)
         to_save = FastaFile()
         for i in pbar:
             # sample and perform gradient-based updates
             next_sequence = self.driver.sample()
+            # apply sequence-dependent adjustments to onehot
+            next_sequence = self.apply_callbacks(next_sequence)
+            
             if self.mode == 'optimize': 
                 next_loss = self.optimize_step(next_sequence)
             else:
                 next_loss = -self.preds_and_composite_loss(next_sequence)
-            # report progress
-            next_dense = next_sequence.argmax(dim=self.class_dim)
-            nucleotides = self.to_nucleotide(next_dense)
-            header = f'step={i}'
-            to_save[header] = nucleotides 
             results.append(next_loss.detach().item())
             # monitor convergence
             if next_loss < best_loss:
-                #print(f'next_loss {next_loss:.4f} is better than best_loss {best_loss:.4f}')
+                # report progress
+                header = f'step={i} loss={next_loss.detach().item():.3f}'
+                next_dense = next_sequence.argmax(dim=self.class_dim)
+                nucleotides = self.to_nucleotide(next_dense)[0]
+                to_save[header] = nucleotides 
                 best_loss = next_loss
                 best_seq = next_sequence
                 stalled_counter = 0
             else:
                 stalled_counter += 1
-            if i % report_interval == 0: 
-                dense = best_seq.argmax(dim=self.class_dim).squeeze()
-                #dense = best_seq.argmax(dim=self.class_dim).squeeze(2).permute(1,0)
-                diff = torch.count_nonzero(dense.squeeze() != self.seed_sequence.squeeze(),dim=0)
-                mean_diff = torch.sum(diff) / diff.numel()
             if stalled_counter > stalled_tol:
                 print(f'Stopping early at iteration {i}')
                 break
             pbar.set_postfix({'best_loss': best_loss.item(),
-                              'curr_loss': next_loss.item(),
-                              'diff': mean_diff.item()})
+                              'curr_loss': next_loss.item()})
         
-        to_save.write('trajectory.fasta')
 
-        best_seq_dense = best_seq.argmax(dim=self.class_dim).squeeze()
+        best_dense = best_seq.argmax(dim=self.class_dim)
+        nucleotides = self.to_nucleotide(best_dense)
         improvement = best_loss - initial_loss 
         print(f'best results: {best_loss}, improvement: {improvement}') 
-        return best_seq_dense.detach(), improvement.detach(), results
+        return nucleotides,to_save,improvement.detach(), results

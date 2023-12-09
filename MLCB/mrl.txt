@@ -1,0 +1,4 @@
+python design_5_prime.py --checkpoint models/optimus_5prime/checkpoints/frosty-river-159-epoch=12-val_loss=0.0818.ckpt --n_iter 1000 --tol 1000 --n_samples 32 --lr 1e-1 --n_trials 50 --results_name group1-32
+python design_5_prime.py --checkpoint models/optimus_5prime/checkpoints/frosty-river-159-epoch=12-val_loss=0.0818.ckpt --n_iter 1000 --tol 1000 --n_samples 32 --lr 1e-1 --n_trials 50 --results_name group2-32
+python design_5_prime.py --checkpoint models/optimus_5prime/checkpoints/frosty-river-159-epoch=12-val_loss=0.0818.ckpt --n_iter 1000 --tol 1000 --n_samples 32 --lr 1e-1 --n_trials 50 --results_name group3-32
+python design_5_prime.py --checkpoint models/optimus_5prime/checkpoints/frosty-river-159-epoch=12-val_loss=0.0818.ckpt --n_iter 1000 --tol 1000 --n_samples 32 --lr 1e-1 --n_trials 50 --results_name group4-32

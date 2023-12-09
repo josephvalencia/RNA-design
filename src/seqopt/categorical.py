@@ -70,10 +70,8 @@ class DifferentiableCategorical(nn.Module):
     
     def onehot_sample(self):
         #sample = self.__dist__().sample()
-        sample = self.sample_n(self.n_samples).squeeze(1) #.transpose(1,0) #.squeeze(2)
-        #print(f'logits shape {self.logits.shape}') 
-        #print(f'sample shape {sample.shape}')
-        #sample = self.sample_n(self.n_samples).transpose(1,0).squeeze(2)
+        #sample = self.sample_n(self.n_samples).squeeze(1) #.transpose(1,0) #.squeeze(2)
+        sample = self.sample_n(self.n_samples).transpose(1,0).squeeze(2)
         onehot_sample = self.to_onehot(sample)
         return onehot_sample
 

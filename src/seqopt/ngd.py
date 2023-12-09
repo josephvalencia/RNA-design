@@ -1,7 +1,5 @@
 import torch
-import torch.nn.functional as F
 import math
-from scipy.stats import pearsonr
 
 class NaturalGradientDescent(torch.optim.SGD):
     
@@ -18,8 +16,6 @@ class NaturalGradientDescent(torch.optim.SGD):
                     grad = p.grad.data
                     a = per_sample_grads.mean(0).detach().cpu().numpy().ravel()
                     b = grad.detach().cpu().numpy().ravel()
-                    corr = pearsonr(a,b)[0] 
-                    print(f'param = {p.name}, correlation between full and sample gradients: {corr}') 
                     natural_grad = self.natural_gradient(grad,per_sample_grads,p.data) 
                     p.data.add_(-group['lr'] * natural_grad)
 

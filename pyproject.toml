@@ -1,0 +1,21 @@
+[project]
+name = "seqopt"
+description = "A lightweight library enabling model-based optimization using PyTorch models of nucleotide properties"
+authors = [{name = "Joseph Valencia", email = "jdv423@gmail.com"}]
+dynamic = ["version", "readme", "dependencies"]
+
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.in"]}
+readme = {file = "README.md"}
+
+[tool.setuptools_scm]
+search_parent_directories = true
+version_scheme = "no-guess-dev"
+local_scheme = "node-and-date"
+
+[project.urls]
+Repository = "https://github.com/josephvalencia/RNA-design.git"

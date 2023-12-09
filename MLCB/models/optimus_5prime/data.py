@@ -15,10 +15,11 @@ class PolysomeEGFP(dp.iter.IterDataPipe):
 
     def __iter__(self):
         for sample in self.df.to_dict('records'):
-            counts = np.asarray([sample[f'{x}'] for x in range(14)])
-            ribosomes = np.asarray([sample[f'r{x}'] for x in range(14)])
-            reads = sample['total_reads'] 
-            example = {'utr' : list(sample['utr']), 'mrl' : sample['mrl'],'reads' : reads}     
+            #counts = np.asarray([sample[f'{x}'] for x in range(14)])
+            #ribosomes = np.asarray([sample[f'r{x}'] for x in range(14)])
+            #reads = sample['total_reads'] 
+            #example = {'utr' : list(sample['utr']), 'mrl' : sample['mrl'],'reads' : reads}     
+            example = {'utr' : list(sample['utr']),'seq_id' : sample['seq_id']}     
             yield example 
 
 def make_dataset_splits(df_test,df_train,random_seed):
@@ -43,16 +44,19 @@ def make_dataset_splits(df_test,df_train,random_seed):
 def apply_transform(x):
     '''Transforms a string of nucleotides into a list of integers'''
 
+    seq_id = x['seq_id']
     mapping = {'A' : 0, 'C' : 1, 'G' : 2, 'T' : 3}
-    utr = [mapping[x] for x in x['utr']] 
-    return torch.tensor(utr,dtype=torch.int64),torch.tensor(x['mrl'],dtype=torch.float32)
+    utr = [mapping[x] for x in x['utr']]
+    mrl = torch.tensor(x['mrl'],dtype=torch.float32) if 'mrl' in x else None
+    return torch.tensor(utr,dtype=torch.int64),seq_id
 
 def dataloader_from_dataset(dataset,batch_size):
     '''Use datapipes to make dataloaders and numericalize utr seq'''
 
     dataset = dataset.map(apply_transform)
     dataset = dataset.batch(batch_size)
-    dataset = dataset.rows2columnar(['utr','mrl'])
+    #dataset = dataset.rows2columnar(['utr','mrl'])
+    dataset = dataset.rows2columnar(['utr','seq_id'])
     dataloader = DataLoader(dataset,batch_size=None,shuffle=True)
     return dataloader
 

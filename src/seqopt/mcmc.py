@@ -2,7 +2,6 @@ import torch
 from typing import Union, Callable, Any
 import torch.nn.functional as F
 import random
-import numpy as np
 
 class DiscreteMCMCSampler():
     ''' Parent class for MCMC sampler from a discrete distribution using a gradient-informed proposal'''
@@ -42,7 +41,7 @@ class DiscreteMCMCSampler():
 class LangevinSampler(DiscreteMCMCSampler):
     '''Implements Zhang et al. ICML 2022 https://proceedings.mlr.press/v162/zhang22t.html'''
 
-    def __init__(self,start_state,num_classes,class_dim,output_fn,onehot_fn,stepsize=0.1,beta=0.95,epsilon=1e-5,metropolis_adjust=True):
+    def __init__(self,start_state,num_classes,class_dim,output_fn,onehot_fn,stepsize=200,beta=0.95,epsilon=1e-3,metropolis_adjust=True):
         super().__init__(start_state,num_classes,class_dim,output_fn,onehot_fn,metropolis_adjust)
         self.stepsize = stepsize
         self.beta = beta
@@ -109,16 +108,11 @@ class LangevinSampler(DiscreteMCMCSampler):
         mutation_scores = grads - grad_current_char
         # stepsize term
         #print((1.0 - onehot)**2)
-        temperature_term = (1.0 - onehot)**2 / (2 * self.stepsize*self.scaled_preconditioner()**2) 
-        a = torch.linalg.norm(mutation_scores) 
-        b = torch.linalg.norm(temperature_term)
-        c = torch.linalg.norm( 1.0 / self.scaled_preconditioner()**2) 
-        #print(mutation_scores.shape)
-        #print(f'taylor_norm ={a}, step_term_norm={b}, precond_norm={c}')
+        G = self.scaled_preconditioner(correct_bias=False)
+        temperature_term = (1.0 - onehot)**2 / (2 * self.stepsize*G**2) 
         logits = 0.5 * mutation_scores - temperature_term 
         # ensure class dim is last 
         dim_order = [x for x in range(logits.dim()) if x != self.class_dim] + [self.class_dim]
-        #print(f'dim_order={dim_order}') 
         proposal_dist = torch.distributions.Categorical(logits=logits.permute(*dim_order))
         return torch.distributions.Independent(proposal_dist,1)
 
@@ -133,10 +127,13 @@ class LangevinSampler(DiscreteMCMCSampler):
         diagonal = grads.pow(2)
         self.preconditioner = self.beta*self.preconditioner + (1.0-self.beta)*diagonal 
 
-    def scaled_preconditioner(self):
-        ''' Bias correction from Adam ''' 
-        bias_corrected = self.preconditioner / (1.0 - self.beta**(self.step+1)) 
-        return bias_corrected.sqrt() + self.epsilon
+    def scaled_preconditioner(self,correct_bias=True):
+        ''' Optional bias correction from Adam '''
+        if correct_bias: 
+            bias_corrected = self.preconditioner / (1.0 - self.beta**(self.step+1)) 
+            return bias_corrected.sqrt() + self.epsilon
+        else:
+            return self.preconditioner.sqrt() + self.epsilon
 
 class PathAuxiliarySampler(DiscreteMCMCSampler):
     '''Implements Sun et al. ICLR 2022 https://openreview.net/pdf?id=JSR-YDImK95 '''

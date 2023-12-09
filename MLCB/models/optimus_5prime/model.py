@@ -95,6 +95,7 @@ class MeanRibosomeLoadModule(pl.LightningModule):
         self.evidential = evidential
         
         #self.model = OptimusFivePrime()
+        
         self.model = MeanRibosomeLoad(n_layers=n_layers,
                                         model_dim=model_dim,
                                         embed_dim=embed_dim,
@@ -124,7 +125,6 @@ class MeanRibosomeLoadModule(pl.LightningModule):
     def setup_batch(self,batch):
         utr = torch.stack(batch['utr'],dim=0).to(self.device)
         utr = torch.nn.functional.one_hot(utr.squeeze(),num_classes=4).float()#.permute(0,2,1).float()
-        print(f'utr shape {utr.shape}')
         target = torch.stack(batch['mrl'],dim=0).to(self.device).unsqueeze(1)
         return utr,target
     
@@ -133,8 +133,8 @@ class MeanRibosomeLoadModule(pl.LightningModule):
 
         #LDS_loss = self.adv_loss_train(self.model,x)
         y_pred = self.model(x)
-        loss = self.er_loss_train(y_pred,y) # + 0.1*LDS_loss 
-        #loss = self.mse_train(y_pred,y)
+        #loss = self.er_loss_train(y_pred,y) # + 0.1*LDS_loss 
+        loss = self.mse_train(y_pred,y)
         self.log("train_loss", loss,batch_size=x.shape[0])
         return loss
     
@@ -143,29 +143,31 @@ class MeanRibosomeLoadModule(pl.LightningModule):
         x,y = self.setup_batch(batch)
         #LDS_loss = self.adv_loss_train(self.model,x)
         y_pred = self.model(x)
-        loss = self.er_loss_val(y_pred,y) # + 0.1*LDS_loss 
-        #loss = self.mse_val(y_pred,y)
+        #loss = self.er_loss_val(y_pred,y) # + 0.1*LDS_loss 
+        loss = self.mse_val(y_pred,y)
         
-        #self.r2_score(y_pred,y)
-        #self.rmse(y_pred,y)
-        
+        self.r2_score(y_pred,y)
+        self.rmse(y_pred,y)
+
+        '''
         self.r2_score(y_pred.mean,y)
         self.rmse(y_pred.mean,y)
         self.uq_spearman(y_pred.epistemic_uncertainty,torch.abs(y_pred.mean-y))
+        ''' 
         
         B = x.shape[0] 
         self.log("val_rmse", self.rmse,batch_size=B)
-        self.log("val_uq_spearman", self.uq_spearman,batch_size=B)
+        #self.log("val_uq_spearman", self.uq_spearman,batch_size=B)
         self.log("val_loss", loss,batch_size=B)
         self.log("val_r2", self.r2_score,batch_size=B)
 
     def test_step(self, batch, batch_idx):
         x,y = self.setup_batch(batch)
         y_pred = self.model(x)
-        loss = self.er_loss_val(y_pred,y)
-        self.r2_score(y_pred.mean,y)
-        #loss =  self.mse_val(y_pred,y)
-        #self.r2_score(y_pred,y) 
+        #loss = self.er_loss_val(y_pred,y)
+        #self.r2_score(y_pred.mean,y)
+        loss =  self.mse_val(y_pred,y)
+        self.r2_score(y_pred,y) 
         self.log("test_loss", loss,batch_size=x.shape[0])
         self.log("test_r2", self.r2_score,batch_size=x.shape[0])
 
