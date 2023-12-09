@@ -2,14 +2,16 @@
 name = "seqopt"
 description = "A lightweight library enabling model-based optimization using PyTorch models of nucleotide properties"
 authors = [{name = "Joseph Valencia", email = "jdv423@gmail.com"}]
-dynamic = ["version", "readme", "dependencies"]
+dynamic = ["version", "readme"]
+dependencies = [
+    "torch >= 1.9.0",
+]
 
 [build-system]
 requires = ["setuptools", "setuptools-scm"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.dynamic]
-dependencies = {file = ["requirements.in"]}
 readme = {file = "README.md"}
 
 [tool.setuptools_scm]
