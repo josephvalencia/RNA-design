@@ -5,7 +5,7 @@ class FastaFile:
     def __init__(self):
         self._sequences = OrderedDict()
 
-    def __set_item__(self, key, value):
+    def __setitem__(self, key, value):
         self._sequences[key] = value
 
     def __getitem__(self, key):
