@@ -10,17 +10,18 @@ class NucleotideDesigner(ABC):
 
     @abstractmethod
     def onehot_encode(self,seq : torch.Tensor) -> torch.Tensor:
-        '''A method to convert a sequence to a one-hot encoding'''
+        '''Convert a sequence to a one-hot encoding'''
         pass
 
     @abstractmethod
     def dense_decode(self,seq) -> Union[str,List[str]] :
-        ''' A method to convert a dense sequence to a readable nucleotide sequence'''
+        ''' Convert a dense sequence to a readable nucleotide sequence'''
         pass
 
     @property
     @abstractmethod
     def oracles(self) -> List[Union[Callable,torch.nn.Module]]:
+        '''Return a list of differentiable oracles that will be applied to the sequence'''
         pass
     
     @abstractmethod
