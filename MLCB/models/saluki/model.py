@@ -83,7 +83,7 @@ class SalukiDegradation(pl.LightningModule):
         self.evidential = evidential 
         self.learning_rate = learning_rate
         self.weight_decay = weight_decay
-        vocab_size = 8 if include_aux else 6
+        vocab_size = 6 if include_aux else 4
         self.model = HalfLife(vocab_size=vocab_size,
                                 n_layers=n_layers,
                                 model_dim=model_dim,

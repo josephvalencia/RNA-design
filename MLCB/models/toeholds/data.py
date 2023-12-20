@@ -21,7 +21,7 @@ class ToeholdData(dp.iter.IterDataPipe):
                         'onoff' : sample['onoff_value']}     
             yield example 
 
-def make_dataset_splits(df,random_seed):
+def make_dataset_splits(df,random_seed,decile_limit=None):
 
     df_train,df_test = train_test_split(df,test_size=0.1,random_state=random_seed) 
     sns.regplot(data=df_train,x='off_value',y='on_value')
@@ -32,8 +32,14 @@ def make_dataset_splits(df,random_seed):
     print(df_train['onoff_value'].describe())
     print(df_train['onoff_value'].quantile([i*0.1 for i in range(11)]))
     df_train['quantile'] = pd.qcut(df_train['onoff_value'],10,duplicates='drop',labels=list(range(10)))
-    print('AFTER') 
-    df_train = df_train[df_train['quantile'] < 9]
+    print(df_train['quantile'].value_counts()) 
+    print('AFTER')
+    
+    if decile_limit is not None:
+        df_train = df_train[df_train['quantile'] < decile_limit]
+        high = df_train[df_train['quantile'] >= decile_limit]
+        df_test = pd.concat([df_test,high]) 
+
     print(df_train['onoff_value'].describe())
     print(df_train['onoff_value'].quantile([i*0.1 for i in range(11)]))
     splits = train_test_split(df_train,test_size=0.1,random_state=random_seed)
@@ -44,8 +50,8 @@ def apply_transform(x):
     '''Transforms a string of nucleotides into a list of integers'''
 
     mapping = {'A' : 0, 'C' : 1, 'G' : 2, 'T' : 3,'<reg>' : 4}
-    #seq = [mapping[x] for x in x['switch_sequence']]
-    seq = [mapping[x] for x in x['trigger_sequence']]
+    #seq = [mapping[x] for x in x['trigger_sequence']]
+    seq = [mapping[x] for x in x['switch_sequence']]
     seq = torch.tensor(seq,dtype=torch.int64)
     on = torch.tensor(x['on'],dtype=torch.float32)
     off = torch.tensor(x['off'],dtype=torch.float32)

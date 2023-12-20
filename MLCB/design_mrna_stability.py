@@ -21,7 +21,7 @@ class StabilityDesigner(NucleotideDesigner):
         def dense_decode(self,seq):
             ''' A method to convert a dense sequence to a readable nucleotide sequence'''
             as_list = seq.cpu().numpy().ravel().tolist()
-            mapping = {0:'A',1:'C',2:'G',3:'T',4:'<score>',5:'<pad>'}
+            mapping = {0:'A',1:'C',2:'G',3:'T',4}#:'<score>',5:'<pad>'}
             nucs = [mapping[x] for x in as_list]
             return ''.join(nucs)
     

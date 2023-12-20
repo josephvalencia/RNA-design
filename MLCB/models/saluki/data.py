@@ -17,9 +17,19 @@ class DegradationLoader(dp.iter.IterDataPipe):
         for sample in self.data.to_dict(orient='records'):
             yield sample
 
-def make_dataset_splits(data,random_seed=65):
+def make_dataset_splits(data,random_seed=65,decile_limit=None):
     '''Split the dataset into train, val, and test sets'''
+
+    data['quantile'] = pd.qcut(data['half_life'],
+                                10,
+                                duplicates='drop',
+                                labels=list(range(10)))
+    
     train,test = train_test_split(data,test_size=0.1,random_state=random_seed)
+    if decile_limit is not None:
+        high = train[train['quantile'] > decile_limit -1]
+        train = train[train['quantile'] <= decile_limit -1]
+        test = pd.concat([test,high])
     train,val = train_test_split(train,test_size=0.1,random_state=random_seed)
     return DegradationLoader(test),DegradationLoader(val),DegradationLoader(train)
 
@@ -40,6 +50,7 @@ def numericalize_and_batch(x,include_aux=True,pad_to_max_len=True,is_human=False
         # onehot_encode sequence
         seq = torch.tensor(seq,dtype=torch.int64)
         seq = F.one_hot(seq,num_classes=4).float()
+        
         # fix length like in paper 
         if pad_to_max_len:
             diff = 12288 - seq.shape[0]
@@ -66,13 +77,19 @@ def numericalize_and_batch(x,include_aux=True,pad_to_max_len=True,is_human=False
     half_lives = torch.stack(B['half_life'],dim=0)
     return seq,B['len'],half_lives,is_human
 
-def build_datapipe(fname,batch_size=None,
+def build_datapipe(fname,
+                   batch_size=None,
+                   decile_limit=None,
                    max_tokens=60000,
                    include_aux=True,
                    pad_to_max_len=True,
                    is_human=False):
     
-    data = parse_json(fname) 
+    data = parse_json(fname)
+    if decile_limit is not None:
+        data['quantile'] = pd.qcut(data['half_life'],10,duplicates='drop',labels=list(range(10)))
+        data = data[data['quantile'] < decile_limit]
+
     dataset = DegradationLoader(data)
     dataset = dataset.shuffle()
 
@@ -96,15 +113,19 @@ def build_datapipe(fname,batch_size=None,
     dataset = dataset.shuffle()
     return dataset
 
-def dataloader_from_json(data_dir,split,include_aux,batch_size=None,max_tokens=60000):
+def dataloader_from_json(data_dir,split,include_aux,
+                         batch_size=None,max_tokens=60000,
+                         decile_limit=None):
     '''Use datapipes to make dataloaders and numericalize utr seq'''
 
     dataset1 = build_datapipe(f'{data_dir}/human/{split}.json',
+                              decile_limit=decile_limit, 
                               batch_size=batch_size,
                               max_tokens=max_tokens,
                               is_human=True,
                               include_aux=include_aux)
     dataset2 = build_datapipe(f'{data_dir}/mouse/{split}.json',
+                              decile_limit=decile_limit, 
                               batch_size=batch_size,
                               max_tokens=max_tokens,
                               is_human=False,

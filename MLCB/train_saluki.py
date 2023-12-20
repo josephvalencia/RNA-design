@@ -12,6 +12,7 @@ def parse_args():
     parser.add_argument('--max_epochs',type=int,default=100)
     parser.add_argument('--lr',type=float,default=1e-3)
     parser.add_argument('--weight_decay',type=float,default=1e-3)
+    parser.add_argument('--decile_limit',type=int,default=None)
     parser.add_argument('--n_layers',type=int,default=3)
     parser.add_argument('--model_dim',type=int,default=64)
     parser.add_argument('--embed_dim',type=int,default=64)
@@ -20,17 +21,23 @@ def parse_args():
     parser.add_argument('--no_aux',action='store_true')
     parser.add_argument('--dropout',type=float,default=0.3)
     parser.add_argument('--stop_metric',type=str,default='val_loss')
-    parser.add_argument('--device',type=int,default=-1)
+    parser.add_argument('--device',type=int,default=0)
     parser.add_argument('--gradient_clip_val',type=float,default=0.5)
     return parser.parse_args()
+
 if __name__ == "__main__":
 
     args = parse_args()
     data_dir = "data/saluki_agarwal_kelley/"
     include_aux = not args.no_aux 
-    train_loader = dataloader_from_json(data_dir,'train',include_aux,args.batch_size)
-    val_loader = dataloader_from_json(data_dir,'valid',include_aux,args.batch_size) 
-    test_loader = dataloader_from_json(data_dir,'test',include_aux,args.batch_size)
+    train_loader = dataloader_from_json(data_dir,'train',
+                                        include_aux,args.batch_size,
+                                        decile_limit=args.decile_limit)
+    val_loader = dataloader_from_json(data_dir,'valid',
+                                      include_aux,args.batch_size,
+                                      decile_limit=args.decile_limit) 
+    test_loader = dataloader_from_json(data_dir,'test',
+                                       include_aux,args.batch_size)
     
     wandb_logger = pl.loggers.WandbLogger(project="saluki_stability",
                                           save_dir="wandb/",)

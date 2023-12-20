@@ -1,0 +1,9 @@
+torch==1.13.0
+wandb>=0.12.10
+lightning
+scikit-learn
+numpy
+pandas
+seaborn
+biotite
+torchdata

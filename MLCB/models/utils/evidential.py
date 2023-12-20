@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.distributions as D
 import contextlib
-from torch.func import jvp, grad, vjp
+from functorch import jvp, grad, vjp
 
 def hvp(f, primals, tangents):
   return jvp(grad(f), primals, tangents)[1]

@@ -95,6 +95,7 @@ def oracle_maximizer_template(designer,args):
                         readable_fn=designer.dense_decode,
                         device=device, 
                         optimizer=args.optimizer,
+                        callbacks=[], 
                         learning_rate=args.lr,
                         n_samples=args.n_samples,
                         max_iter=args.n_iter)

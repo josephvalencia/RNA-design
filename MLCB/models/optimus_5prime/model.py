@@ -3,7 +3,7 @@ from torch import optim, nn
 import lightning.pytorch as pl
 import torchmetrics
 import torch.nn.functional as F
-from models.utils.evidential import EvidentialLoss, EvidentialRegressionOutputLayer, ERVirtualAdversarialLoss
+from models.utils.evidential import EvidentialLoss, EvidentialRegressionOutputLayer # ERVirtualAdversarialLoss
 from models.utils.bytenet import ByteNetRNNRegression
 
 class MeanRibosomeLoad(ByteNetRNNRegression):
@@ -30,7 +30,6 @@ class MeanRibosomeLoad(ByteNetRNNRegression):
                         dropout=dropout,
                         max_dilation_factor=max_dilation_factor)
 
-        #self.embedding = nn.Linear(4,embed_dim)
         self.in_cnn = nn.Conv1d(in_channels=4,
                                 out_channels=embed_dim,
                                 kernel_size=5,
@@ -39,7 +38,6 @@ class MeanRibosomeLoad(ByteNetRNNRegression):
     
     def forward(self,x):
         '''x : torch.Tensor of shape (batch_size,sequence_length)'''
-        #x = self.embedding(x)
         x = self.in_cnn(x.permute(0,2,1))
         x = F.gelu(self.layernorm(x))
         x = x.permute(0,2,1)
@@ -94,8 +92,6 @@ class MeanRibosomeLoadModule(pl.LightningModule):
         self.learning_rate = learning_rate
         self.evidential = evidential
         
-        #self.model = OptimusFivePrime()
-        
         self.model = MeanRibosomeLoad(n_layers=n_layers,
                                         model_dim=model_dim,
                                         embed_dim=embed_dim,
@@ -114,8 +110,8 @@ class MeanRibosomeLoadModule(pl.LightningModule):
             self.uq_spearman = torchmetrics.SpearmanCorrCoef()
             self.er_loss_train = EvidentialLoss(error_weight=0.1,reduction='mean')
             self.er_loss_val = EvidentialLoss(error_weight=0.1,reduction='mean')
-            self.adv_loss_train = ERVirtualAdversarialLoss(exact=True)
-            self.adv_loss_val = ERVirtualAdversarialLoss(exact=True)
+            #self.adv_loss_train = ERVirtualAdversarialLoss(exact=True)
+            #self.adv_loss_val = ERVirtualAdversarialLoss(exact=True)
         
         self.save_hyperparameters()
 
@@ -133,31 +129,32 @@ class MeanRibosomeLoadModule(pl.LightningModule):
 
         #LDS_loss = self.adv_loss_train(self.model,x)
         y_pred = self.model(x)
-        #loss = self.er_loss_train(y_pred,y) # + 0.1*LDS_loss 
-        loss = self.mse_train(y_pred,y)
+        if self.evidential:
+            loss = self.er_loss_train(y_pred,y)
+        else: 
+            loss = self.mse_train(y_pred,y)
         self.log("train_loss", loss,batch_size=x.shape[0])
         return loss
     
     def validation_step(self, batch, batch_idx):
         
         x,y = self.setup_batch(batch)
-        #LDS_loss = self.adv_loss_train(self.model,x)
         y_pred = self.model(x)
-        #loss = self.er_loss_val(y_pred,y) # + 0.1*LDS_loss 
-        loss = self.mse_val(y_pred,y)
-        
-        self.r2_score(y_pred,y)
-        self.rmse(y_pred,y)
-
-        '''
-        self.r2_score(y_pred.mean,y)
-        self.rmse(y_pred.mean,y)
-        self.uq_spearman(y_pred.epistemic_uncertainty,torch.abs(y_pred.mean-y))
-        ''' 
-        
         B = x.shape[0] 
+        
+        if self.evidential:
+            #loss = self.er_loss_val(y_pred,y) # + 0.1*LDS_loss 
+            loss = self.er_loss_val(y_pred,y) 
+            self.r2_score(y_pred.mean,y)
+            self.rmse(y_pred.mean,y)
+            self.uq_spearman(y_pred.epistemic_uncertainty,torch.abs(y_pred.mean-y))
+            self.log("val_uq_spearman", self.uq_spearman,batch_size=B)
+        else: 
+            loss = self.mse_val(y_pred,y)
+            self.r2_score(y_pred,y)
+            self.rmse(y_pred,y)
+        
         self.log("val_rmse", self.rmse,batch_size=B)
-        #self.log("val_uq_spearman", self.uq_spearman,batch_size=B)
         self.log("val_loss", loss,batch_size=B)
         self.log("val_r2", self.r2_score,batch_size=B)
 
